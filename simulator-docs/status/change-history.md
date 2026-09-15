@@ -4,6 +4,22 @@ Reverse-chronological. One entry per phase, decision, or significant fix (see `.
 
 ---
 
+## 2026-09-16 — Phase 6 app layer: biometric substitute core implemented
+
+**What** (app repo)
+- `src/biometric/crypto.ts` — AES-256-GCM at rest (ADR-011 §2): `[12 B iv][16 B tag][ct]`; key from `ZK_BIOMETRIC_KEY` (hex/base64/raw-32); no key ⇒ generated **session** key with a loud warning (ciphertext intentionally dies with the process — the safe default).
+- `src/biometric/store.ts` — `EncryptedBiometricStore` implementing the Phase-1 `BiometricStore` seam: one ciphertext `.bio` file per (uid, finger) under `ZK_BIOMETRIC_DATA`; metadata + template share the encrypted envelope; `list()` decrypts for metadata only.
+- `src/biometric/matcher.ts` — `MatcherClient` for the ADR-010 sidecar (`extract` / `templates` / `identify` / `verify` / `templates` DELETE incl. clear-all for purge); `MatcherUnavailableError` ⇒ 503, never auto-accept (NFR-12).
+- `src/biometric/service.ts` — enrollment (consent-gated ADR-011 §4, triple-write: encrypted copy + FR-8 wire record `format='iso19794-2'` + sidecar candidate, with rollback on matcher failure), 1:N identify (threshold `ZK_MATCH_THRESHOLD` default 40; ambiguity guard `ZK_MATCH_SEPARATION` default 20 — runner-up too close ⇒ `ambiguous`, never silently pick; orphan sweep per the retention rule), 1:1 verify, purge (encrypted + matcher + FR-8 ISO copies), boot-time `reconcile()` (retention sweep + sidecar repopulation — the sidecar's candidate table is memory-only).
+- REST v2 in `src/core/http.ts`: `GET /api/biometric/status`, `POST /api/biometric/enroll|identify|verify|remove|purge` — additive to v1 (byte-for-byte unchanged); decisions answer 200, infrastructure answers 503; template bytes never logged/echoed.
+- Wired in `src/server.ts`: the subsystem exists only when `ZK_MATCHER_URL` is set (NFR-12) — Phases 1–5 behaviour is untouched without it.
+
+**Tests — 43/43 green** (was 25/25): 13 biometric unit (key parsing, GCM round-trip/tamper/wrong-key/fresh-IV, ciphertext-at-rest plaintext assertions, decision rules with stubbed matcher incl. ambiguous + orphan sweep + threshold override) + 5 biometric integration (`test/integration/biometric.test.ts` boots its own sidecar on :28092): **ADR-010 criterion 3 cycle end to end from the app REST layer** (consent-gated enroll → identify match with userId → impostor no-match → remove → re-probe gone → purge leaves no ciphertext and empties the sidecar), FR-8 wire visibility of a REST-enrolled template. Pre-existing sqlite-suite temp-dir cleanup hardened (Windows EPERM flake in `after`, assertions untouched).
+
+**Decisions/evidence:** ADR-010 criterion 3 → **met** (all spike criteria now recorded); traceability rows (FR-14/15 core, FR-17, FR-18 core) ✅; roadmap Phase 6 annotated; configuration/security/biometric-core docs updated.
+
+**Next:** Phase 7 — capture stations (camera PWA first), N-sample enrollment ceremony + quality gate; then Phase 8 hardening (BITS full-workday run, deployment guide).
+
 ## 2026-09-16 — Phase 6 started: ADR-010 matcher spike passed (sidecar accepted)
 
 **What**

@@ -18,11 +18,11 @@ Single source: environment variables + optional CLI flags (12-factor style, no c
 | `ZK_STORE` | `memory` | `memory` \| `sqlite` (Phase 5) |
 | `ZK_SQLITE_PATH` | `./data/device.sqlite` | SQLite file when `ZK_STORE=sqlite` |
 | `ZK_LOG_LEVEL` | `info` | `debug` adds per-frame hex dumps (NFR-09) |
-| `ZK_MATCHER_URL` | *(empty)* | Matcher sidecar base URL (`http://127.0.0.1:8090`); empty ⇒ biometric features disabled (NFR-12) |
-| `ZK_BIOMETRIC_KEY` | *(empty)* | AES-256-GCM key for biometric templates at rest (ADR-011). Empty in dev ⇒ auto-generated key with a loud warning; **never** committed or logged. Required in any real deployment |
-| `ZK_BIOMETRIC_DATA` | `./data/biometric` | Directory for encrypted template storage (git-ignored) |
-| `ZK_MATCH_THRESHOLD` | *(engine default)* | Accept threshold for 1:N identify — tunable per deployment, never hard-coded (research Q4) |
-| `ZK_MATCH_SEPARATION` | *(engine default)* | Minimum gap between best and runner-up candidate required to accept (ambiguity guard) |
+| `ZK_MATCHER_URL` | *(empty)* | Matcher sidecar base URL (`http://127.0.0.1:28090` — the sidecar's default port); empty ⇒ biometric features disabled (NFR-12) |
+| `ZK_BIOMETRIC_KEY` | *(empty)* | AES-256-GCM key (32 bytes: hex/base64/raw) for biometric templates at rest (ADR-011). Empty in dev ⇒ auto-generated **session** key with a loud warning — ciphertext becomes unreadable on restart; **never** committed or logged. Required in any real deployment |
+| `ZK_BIOMETRIC_DATA` | `./data/biometric` | Directory for encrypted template storage (git-ignored). CLI flag: `--zk-biometric-data-dir` |
+| `ZK_MATCH_THRESHOLD` | `40` | Accept threshold for 1:N identify (SourceAFIS operating point validated by the ADR-010 spike: same-finger ≥ 62.6 vs cross-finger ≤ 4.3) |
+| `ZK_MATCH_SEPARATION` | `20` | Minimum score gap between best and runner-up candidate required to accept; a closer runner-up ⇒ `ambiguous` rejection (never silently pick) |
 | `ZK_CAPTURE_SAMPLES` | `3` | Samples required per enrollment (FR-14) |
 
 ## Precedence & validation

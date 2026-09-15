@@ -20,7 +20,7 @@ Written for a portfolio/demo tool — honest about what is and isn't protected.
 
 ## Biometric data (Phase 6+ — the one area with real-world obligations)
 
-When real fingerprints are enrolled, templates become **sensitive personal information** (ADR-011; `../research/biometrics.md` §6). Rules:
+**Implemented 2026-09-16 (Phase 6 core).** When real fingerprints are enrolled, templates become **sensitive personal information** (ADR-011; `../research/biometrics.md` §6). Rules:
 
 | Rule | Implementation |
 |---|---|

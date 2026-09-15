@@ -1,6 +1,6 @@
 # Biometric Core (Phase 6+)
 
-**Status:** planned — nothing here exists in v1 (Phases 1–5). This document defines the design so Phases 1–5 are built with the right seams and never have to be undone.
+**Status:** core implemented in Phase 6 (matcher sidecar, encrypted store, enrollment/identify/verify service, REST v2 — see ADR-010 spike results); capture *stations* are Phase 7, so live capture still enters through the REST surface. This document defines the design the implementation follows.
 
 **Reading order:** `../research/biometrics.md` (what is possible) → `../decisions/ADR-009*.md`, `ADR-010*.md`, `ADR-011*.md` → this document → `capture-stations.md`.
 
