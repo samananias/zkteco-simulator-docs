@@ -4,6 +4,22 @@ Reverse-chronological. One entry per phase, decision, or significant fix (see `.
 
 ---
 
+## 2026-09-16 — Phase 6 started: ADR-010 matcher spike passed (sidecar accepted)
+
+**What**
+- Built the matcher sidecar (app repo `sidecar/MatcherSidecar.java`): SourceAFIS 3.18 + fingerprintio 1.3.0 behind a tiny localhost HTTP API; pinned jars vendored (`sidecar/lib/`, 27 MB, offline-safe for demos). Optional at boot per ADR-010 / NFR-12.
+- Spike (Node harness, throwaway): 10 enrolled synthetic-template candidates across 5 identities / fingers 0–2 → **10/10 identify correct** with probes rotated ±2–6°, ±1–3 px position jitter, ±10° angle noise, 10 % minutia drop; same-finger scores 62.6–324.9 vs cross-finger max **4.3** (≈15× margin); impostor probes ≤ **2.1**; 1:1 verify **231.7** vs wrong-probe **0.236**; identify latency **33–51 ms** steady-state (< 200 ms criterion); cold boot **3.86 s** (< 10 s criterion).
+- Template wire format pinned to **ISO 19794-2** (`FingerprintCompatibility` at the sidecar edge; SourceAFIS native only internally). `GET /synthetic` produces deterministic synthetic minutiae templates (NFR-07 — never real); the Phase-6 integration tests reuse it.
+
+**Key discoveries (sidecar / SourceAFIS 3.18)**
+- `new FingerprintTemplate(byte[])` parses **only** SourceAFIS's native format — ISO/ANSI must go through `FingerprintCompatibility.importTemplate()`; export via `exportTemplates(TemplateFormat.ISO_19794_2_2005, …)`.
+- fingerprintio's minutia `angle` is the ISO 2°-units unsigned byte (degrees ÷ 2), not degrees.
+- SourceAFIS 3.18 deprecated the fluent `new FingerprintImage().dpi().decode()` — use `new FingerprintImage(image, new FingerprintImageOptions().dpi(dpi))`.
+- Synthetic ridge-field images (pure sinusoid patterns) extract ~18 mostly mask-boundary minutiae and do not survive rotation — image matching *quality* belongs to Phase 7 (capture quality gate); the spike validates the matcher on controlled synthetic minutiae instead. Recorded honestly in ADR-010.
+
+**Decisions:** ADR-010 status → **accepted** (spike results recorded in the ADR; criterion 3 — app REST-layer cycle — recorded with the Phase-6 integration test before the gate closes).
+**Next:** Phase 6 app layer — encrypted `BiometricStore` (ADR-011), matcher client, enrollment/identify/verify services, REST v2.
+
 ## 2026-09-15 — Phases 1–5 implemented; oracle gates green
 
 **What**
