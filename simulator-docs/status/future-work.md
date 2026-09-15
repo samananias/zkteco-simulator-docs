@@ -24,7 +24,17 @@ Ideas and deferred items — none are commitments. Promote an item by giving it 
 - **GitHub Actions CI** (test matrix; see testing-strategy §3).
 - **Packaged releases** (single-binary via `node --experimental-sea` or `pkg`) for share-anywhere demos.
 
+## Biometrics (Phase 6+ — planned, not v1)
+- **Enrollment ceremony over the protocol** — wire `CMD_STARTENROLL` (FR-8, currently ACK-only) to the real enrollment service and emit the `EF_ENROLLFINGER` event sequence, so backend-driven enrollment demos work end to end without any BITS change.
+- **PC-connected USB scanner station** — third `CaptureStation` adapter (research §3); convenient for desktop demos.
+- **Multi-finger / multi-modal** — more than one finger per employee; eventual face capture on terminals that have it (a separate research effort; cameras are far more accessible than fingerprint sensors).
+- **Liveness / anti-spoofing** — if the substitute is ever used with real employees at any scale, presentation-attack detection becomes a genuine requirement (currently an explicit non-goal, known-limitations #17).
+- **Template export/import (ISO 19794-2)** — portable backup so a deployment can migrate between machines without re-enrolment.
+- **OpenAPI spec for REST v2** — machine-readable contract for non-ZK integrators.
+
 ## Deliberately not planned
 - TLS/auth on the simulator's own HTTP API (demo tool; see security.md).
-- Real biometric matching (impossible — see known-limitations #1).
+- **Built-in / in-display phone sensor capture** (platform-impossible — known-limitations #14).
+- **Template interop with real ZKTeco firmware** (proprietary formats, no published converter — known-limitations #15).
+- **Cloud biometric APIs** (sends templates off-device; ADR-010/ADR-011).
 - Cloud deployment of the protocol engine (plaintext LAN protocol).

@@ -1,6 +1,6 @@
 # Non-Functional Requirements
 
-**v1.0 — Phase 0.**
+**v1.1 — Phase 0 + biometric scope (2026-09-15).**
 
 | ID | Requirement | Rationale / measure |
 |---|---|---|
@@ -11,5 +11,8 @@
 | NFR-05 | **Maintainability** — layered modules (transport / protocol / device / web), typed record structs with byte-offset constants co-located with decoders, ADR process, docs updated with every change. | Byte-layout code rots silently; structure is the countermeasure. |
 | NFR-06 | **Testability** — unit tests (codec, checksum, records, time codec with golden byte vectors), integration tests (pinned oracle client), one scripted end-to-end demo flow. | Validation by construction, per the original brief. |
 | NFR-07 | **Security posture** — LAN/localhost tool only; the ZK protocol has no TLS and weak auth (documented); demo data contains **no real personal data**; comm key supported but optional; HTTP/WS interface must not be exposed publicly. | Honest about what the underlying protocol does and doesn't protect. |
-| NFR-08 | **Honest scope** — the simulator never claims real biometric verification; limitations are documented in `../status/known-limitations.md` and surfaced in the project README. | The portfolio value is protocol engineering, not pretending to be hardware. |
+| NFR-08 | **Honest scope** — v1 never claims biometric verification (there is none); Phase 6+ *does* perform genuine matching, but still never claims parity with a capacitive sensor or ZKTeco firmware. Limitations are documented in `../status/known-limitations.md` and surfaced in the project README. | The portfolio value is protocol + systems engineering, not pretending to be hardware. |
 | NFR-09 | **Observability** — structured per-session packet log (command in/reply out, hex on demand) to make integration debugging tractable; log level configurable. | Protocol bugs are invisible without wire-level logging. |
+| NFR-10 | **Biometric privacy (Phase 6+)** — real biometrics are sensitive personal information: explicit consent before the first capture, purpose-bound use (attendance identification only), no images persisted, template payloads redacted from logs/API responses, and a working deletion path per employee. Demo/repo data stays synthetic. | Data-protection obligations attach the moment a real template is stored (ADR-011, `../research/biometrics.md` §6). |
+| NFR-11 | **Biometric protection at rest (Phase 6+)** — templates stored as AES-256-GCM ciphertext; key supplied via `ZK_BIOMETRIC_KEY` and never committed or logged; loss of the key is documented as unrecoverable (re-enrol). | Encryption must exist before the first real template, not be retrofitted. |
+| NFR-12 | **Graceful degradation (Phase 6+)** — the protocol engine, store, REST v1 and UI run fully with no capture station and no matcher present; biometric endpoints report 503 and the core never auto-accepts. | BITS compatibility and the base demo must never depend on optional biometric components. |

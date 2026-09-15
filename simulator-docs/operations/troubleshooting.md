@@ -36,6 +36,19 @@ Symptom → cause → fix. Add entries as real problems are met (this file grows
 | UI shows "disconnected" | WS down (server restarted) | Auto-reconnect with backoff; refresh for snapshot |
 | Clock drifts from backend expectation | Backend expects PHT; device clock is simulator host time ± `ZK_TIME_OFFSET_MIN` | Backend's `setTime` aligns it; or set the offset explicitly |
 
+## Biometrics (Phase 6+ only)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `/scan` says "identification service unavailable" (not a red fail) | Matcher sidecar down or `ZK_MATCHER_URL` wrong/empty | Start the sidecar (`npm run dev:biometric`); check `GET /api/biometric/status`. By design this never falls back to accepting a punch |
+| Biometric endpoints return 503 while the device works fine | Expected: biometric features are disabled when no matcher is configured (NFR-12) | Configure `ZK_MATCHER_URL`; nothing else is affected |
+| Enrollment rejects every camera capture | Lighting/pose — the camera route is demo-grade | Bright even light, plain white surface, hold still; check the rejection reason (`too-dark`/`too-blurry`/`partial-finger`) |
+| Every capture is rejected as ambiguous | Threshold/separation too strict for the capture quality | Tune `ZK_MATCH_THRESHOLD` / `ZK_MATCH_SEPARATION` (never hard-coded — research Q4) |
+| All templates lost after restart in dev | `ZK_BIOMETRIC_KEY` was auto-generated for that run and not persisted | Set `ZK_BIOMETRIC_KEY` explicitly; templates cannot be recovered — re-enroll (documented in ADR-011) |
+| Need to see template bytes while debugging FR-8 | Redaction is on by design | Re-enable hex for one session only and remember that logs then contain biometric data — purge the log file afterwards |
+| Camera page can't access the camera | Browser permission / non-HTTPS origin | Allow camera permission; use `localhost` or HTTPS (browsers restrict `getUserMedia` on plain HTTP origins) |
+| Oracle template call patterns regress after a biometric change | A Phase-6 change touched the FR-8 path | Run the L5 protocol non-regression test; the ZK wire surface must stay byte-identical |
+
 ## Debugging workflow
 1. `ZK_LOG_LEVEL=debug` → per-frame hex lines.
 2. Reproduce with the L2 integration test closest to the symptom (all oracle call patterns are scripted there).

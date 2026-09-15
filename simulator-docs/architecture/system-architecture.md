@@ -39,8 +39,34 @@
 | `web/ws.ts` | WebSocket server + fan-out of state snapshots and live events | web-ui.md |
 | `seed/demo-data.ts` | Employees, a week of attendance, placeholder templates | data-model.md |
 | `config.ts` | Env/CLI config (ports, comm key, checksum variant, seed profile, log level) | ../operations/configuration.md |
+| `biometric/enrollment.ts` | N-sample ceremony, quality gate, sample consistency, template build (Phase 6) | biometric-core.md |
+| `biometric/identify.ts` | 1:N identify + 1:1 verify verdicts; threshold/ambiguity policy; **never** auto-accepts | biometric-core.md |
+| `biometric/matcher-client.ts` | Thin HTTP client for the matcher sidecar (3 endpoints); reports 503 when absent (ADR-010) | biometric-core.md |
+| `biometric/store.ts` | `BiometricStore` impl: AES-256-GCM ciphertext at rest, purge/delete (ADR-011) | data-model.md §4b |
+| `capture/*` | `CaptureStation` adapters: camera-pwa, otg-scanner, import, fixture (ADR-009) | capture-stations.md |
+| `web/routes/biometric.ts` | REST v2 endpoints — the open substitute surface (Phase 6) | api-and-events.md §4 |
 
-## 3. Data flow — the two demo directions
+**Rows below `config.ts` are Phase 6–8 and every one of them is optional at boot** (NFR-12): with them absent the system is exactly the v1 simulator, and the protocol engine is untouched by their presence or absence. The protocol engine, `DeviceStore` and REST v1 have **no dependency** on any biometric module — that containment is a design rule, not an accident.
+
+## 3. Biometric extension (Phase 6+) — additive by construction
+
+```text
+    📱 camera PWA ──┐                     ┌── matcher sidecar (JVM, ADR-010)
+    📱 USB-OTG ─────┼──► capture station ─┤   localhost HTTP/JSON, optional
+    📥 import ──────┘    (ADR-009)        └── ISO 19794-2 templates only
+                              │
+                              ▼
+                     biometric core (enroll / identify / verify)
+                              │
+                  ┌───────────┴────────────┐
+                  ▼                        ▼
+        BiometricStore (encrypted)   AttendanceRecord → (unchanged path below)
+                                              └─► DeviceStore → event bus → protocol + WS
+```
+
+The arrow that matters: **the biometric core feeds the *existing* `AttendanceRecord` path**. No new event type, no protocol change, no BITS change — a matched punch is indistinguishable on the wire from a triggered one, except that `verifyType=1` is now genuinely earned. That is what makes the result a *substitute* rather than a parallel product.
+
+## 4. Data flow — the two demo directions
 
 **Punch from web UI → backend DB:**
 UI "scan" → REST `/api/punch` → store appends AttendanceRecord → event bus → (a) WS: verification screen + updated state; (b) protocol engine: `EF_ATTLOG` to registered sessions (queued if in-flight). BITS backend picks it up on its ~30 s poll (`getAttendances`) and ingests into Postgres; realtime events additionally available to any registering client.
@@ -48,7 +74,7 @@ UI "scan" → REST `/api/punch` → store appends AttendanceRecord → event bus
 **Backend action → web UI:**
 backend `setUser` → `CMD_USER_WRQ` → store update → event bus → WS: user list/UI reflects; next backend read returns the user (two-way sync).
 
-## 4. Technology (ADR-002 justification)
+## 5. Technology (ADR-002 justification)
 
 | Choice | Rationale | Rejected alternative |
 |---|---|---|
@@ -58,13 +84,13 @@ backend `setUser` → `CMD_USER_WRQ` → store update → event bus → WS: user
 | `node-zklib@1.3.0` (exact) as devDependency | The acceptance oracle — tests import the backend's actual client | Testing against spec prose only |
 | in-memory store default | Demo-first; SQLite only when persistence is wanted | Postgres/etc. — no justification |
 
-## 5. Error handling principles
+## 6. Error handling principles
 
 - Unknown/malformed packets → log (hex) + `CMD_ACK_UNKNOWN`; session survives.
 - Abrupt disconnects → session cleanup; event queues dropped.
 - Port conflicts → pre-flight check with a human-readable error (Windows reserved ranges).
 - Never throw across the protocol boundary: every command handler returns a reply.
 
-## 6. Repository relationship
+## 7. Repository relationship
 
 `zkteco-simulator-app` contains this system; everything above (and below) is documented in this docs repo. The app README links here for any "why" question.

@@ -4,6 +4,27 @@ Reverse-chronological. One entry per phase, decision, or significant fix (see `.
 
 ---
 
+## 2026-09-15 — Scope extension: simulator → ZKTeco substitute (biometrics planned)
+
+**What**
+- Owner direction: the project should become a **usable ZKTeco substitute**, not only a simulator — real fingerprint enrollment and real matching — while keeping the ZK protocol surface frozen so BITS keeps working unmodified.
+- Researched the feasibility of real biometrics end to end and recorded it in `../research/biometrics.md` (new): phone built-in and in-display sensors are **unusable by platform design** (TEE/Secure Enclave; no capture or enrollment API) `[V]`; the workable routes are **camera touchless capture** (zero hardware, demo-grade) and **USB-OTG scanners** (~₱1–2.5k, real quality); ZKTeco templates are proprietary minutiae blobs that can be **stored/copied but not matched** by our engine (`[A]`); **no usable fingerprint matcher exists in the npm ecosystem** `[V]`, so matching is isolated out-of-process.
+- Added architecture: `../architecture/biometric-core.md`, `../architecture/capture-stations.md`.
+- Added decisions: **ADR-009** capture-source abstraction (accepted), **ADR-010** matching engine out-of-process (**proposed** — Phase-6 spike), **ADR-011** biometric data protection (accepted, applies from Phase 6).
+- Extended requirements: **FR-14…FR-18** (enrollment, identify/verify, capture stations, encrypted store, REST v2), **NFR-10…NFR-12** (privacy, encryption at rest, graceful degradation), traceability rows for the substitute scope (including the two permanently ruled-out items).
+- Extended plans: roadmap **Phases 6–8**, revised-project-plan rows 16–20, testing-strategy **L5**, configuration vars (matcher URL, biometric key, thresholds), security posture for biometric data, risks **R10–R15**, known-limitations **#14–#18**, future-work biometric backlog.
+
+**Why this is a scope *extension*, not a rewrite**
+- Phases 1–5 are unchanged and remain the prerequisite: the frozen protocol surface is precisely what makes the result a *substitute* rather than a separate product.
+- Only two zero-cost forward-compatibility hooks enter Phases 1–5: `FpTemplate.format` (`synthetic` \| `iso19794-2`) and `BiometricStore` as an interface alongside `DeviceStore`.
+- The base demo and BITS compatibility never depend on any biometric component (NFR-12); the matcher sidecar is optional at boot.
+
+**Permanently ruled out (documented, not deferred)**
+- Phone built-in / in-display sensor as a capture device (platform isolation).
+- Template interoperability with real ZKTeco firmware (proprietary formats).
+
+**Next:** Phase 1 — protocol core (unchanged; see `../plan/roadmap.md`).
+
 ## 2026-09-15 — Repositories published
 
 Both repositories published publicly on GitHub under the `samananias` organization:

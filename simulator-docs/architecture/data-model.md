@@ -22,7 +22,13 @@ interface AttendanceRecord {
   state: 0|1|2|3|4|5;       // in/out/break-out/break-in/OT-in/OT-out
 }
 
-interface FpTemplate { uid: number; finger: 0-9; flag: 1; blob: Buffer; } // synthetic ≥ 500 B
+interface FpTemplate {
+  uid: number; finger: 0-9; flag: 1;
+  blob: Buffer;                       // opaque on the wire — FR-8 never inspects it
+  format: 'synthetic' | 'iso19794-2'; // v1 = synthetic; Phase 6 = real ISO templates
+  quality?: number;                   // 0-100, from the enrollment quality gate (Phase 6)
+  source?: 'camera' | 'usb-otg' | 'pc-scanner' | 'imported';  // Phase 6/7
+}
 interface DeviceOptions { [key: string]: string }   // ~SerialNumber, ~DeviceName, ~Platform, ~OS, ~ZKFPVersion, ~PIN2Width, FingerFunOn, FaceFunOn, SDKBuild…
 interface LcdState { lines: string[]; until?: Date }
 interface DeviceState { enabled: boolean; locked: boolean; }
@@ -61,6 +67,26 @@ interface DeviceStore {
 - A week of attendance (Mon–Sat): on-time check-ins, some late, one absent, check-outs in the evening — timestamps generated through the codec so device reads and UI agree.
 - Fingerprints: finger 0 (right index) enrolled for most employees with 512-B synthetic `SS21…` blobs; one employee left empty to exercise the "no template" probe path.
 - ~300 attendance records total — big enough to cross a couple of TCP segments, far below any performance concern.
+
+## 4b. Biometric store (interface from Phase 1; real implementation in Phase 6)
+
+`BiometricStore` sits **alongside** `DeviceStore` — never inside it — so the protocol-facing store stays exactly as specified above, and encryption/consent concerns stay isolated (ADR-011).
+
+```ts
+interface BiometricStore {
+  put(t: BiometricTemplate, plaintext: Buffer): void;   // encrypts before persisting
+  get(templateRef: string): Buffer | null;              // decrypts on read (in-memory only)
+  findByUid(uid: number): BiometricTemplate[];
+  delete(uid: number, finger: number): void;
+  purge(): void;                                        // full wipe (demo reversal)
+  list(): BiometricTemplate[];                          // metadata only — never plaintext
+}
+```
+
+Rules:
+- **No method returns plaintext for listing** — `list()` yields metadata; `get()` is the single decrypt path, used only by the matcher/enrollment.
+- `DeviceStore.setTemplate/deleteTemplate` remain the FR-8 path and delegate to this store when it is enabled; when it is not (v1), the synthetic blob lives in memory as today.
+- Nothing here is reachable from the protocol engine — a template read over the wire goes through `DeviceStore` exactly as before (NFR-12).
 
 ## 5. SQLite schema (Phase 5, optional)
 

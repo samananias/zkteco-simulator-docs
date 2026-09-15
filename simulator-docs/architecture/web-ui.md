@@ -56,7 +56,21 @@ Reconnect with exponential backoff; on connect the client pulls a full REST snap
 - Utilitarian, slightly "early-2010s touchscreen kiosk" — square icon tiles in the menu, minimal shadows, no modern glassmorphism.
 - The bezel + keypad graphic is the single strongest "this is a device" cue — do not ship a borderless page.
 
-## 5. Accessibility & practical notes
+## 5. Biometric screens (Phase 6–7 — additive pages, same device aesthetic)
+
+The device face above is **unchanged**; the biometric UI is a separate set of pages so the kiosk illusion is never diluted by admin chrome.
+
+| Page | Purpose | Notes |
+|---|---|---|
+| `/enroll` | Employee enrollment via the camera station | Consent statement first, framing overlay, per-sample quality verdict with actionable reasons, progress (sample 2 of 3), success confirmation |
+| `/scan` | Punch / identify station | Big "Place finger" guidance, capture → verdict; on pass shows the employee name (mirrors the device's green ✓); on fail shows the reason and offers retry |
+| `/biometric` | Admin view | Enrolled employees (metadata only), template counts, station/matcher status, purge action with explicit confirmation |
+
+Rules carried from ADR-011: no fingerprint image is ever displayed after capture (not even to the enrollee), no template bytes in the UI or DOM, and the consent text is not dismissible-without-reading for enrollment. On `identify` the device face's `verify-pass`/`verify-fail` states are triggered by the **real** matcher verdict — the same WebSocket messages as before, so no UI rework is needed (Phase 6 reuses this file's §2 state table verbatim).
+
+If the matcher is unreachable, `/scan` shows a distinct "identification service unavailable" state — deliberately not the red "try again" fail overlay, because those mean different things (research Q: never confuse "I don't know you" with "I can't check right now").
+
+## 6. Accessibility & practical notes
 
 - The UI is a prop: auto-refresh clock, no interactive focus traps; keyboard shortcuts (1–9, M, Esc, Enter) mirror the keypad for screencasts.
 - A small "SIMULATOR" watermark in a corner of the bezel (not the screen) keeps portfolio screenshots honest without breaking immersion.

@@ -1,8 +1,8 @@
 # Functional Requirements
 
-**v1.0 — Phase 0.** Derived from the original brief (`00-original-brief.md`) and revised per `../research/feasibility-report.md`. Item-by-item mapping: `traceability.md`.
+**v1.1 — Phase 0 + biometric scope (2026-09-15).** Derived from the original brief (`00-original-brief.md`), revised per `../research/feasibility-report.md`, and extended per `../research/biometrics.md` (owner direction: simulator → ZKTeco substitute). Item-by-item mapping: `traceability.md`.
 
-**Global acceptance criterion:** unless stated otherwise, every requirement is validated by running the *unmodified* pinned oracle — `node-zklib@1.3.0` (patched) as used by `C:/bits/backend/src/shared/lib/zk-driver.ts` — against the simulator.
+**Global acceptance criterion:** unless stated otherwise, every requirement is validated by running the *unmodified* pinned oracle — `node-zklib@1.3.0` (patched) as used by `C:/bits/backend/src/shared/lib/zk-driver.ts` — against the simulator. The biometric requirements (FR-14…FR-18) have their **own** gate (Phase-6/7, ADR-010/ADR-009) and never relax this one — they must not change a single byte of the ZK wire surface.
 
 ---
 
@@ -39,8 +39,8 @@ Decode reverses with 31-day months and 12-month years. Round-trip validated agai
 - **Clear:** `CMD_CLEAR_ATTLOG` (15).
 - Backend mapping note: node-zklib 1.3.0 exposes records as `{ userSn, deviceUserId, recordTime, ip }`; the BITS layer maps `status = record.state || 0`.
 
-## FR-8 — Fingerprint templates (placeholder blobs)
-No real biometrics exist; blobs are synthetic but structurally plausible (≥ 500 B, `SS21`-style header) so downstream code paths behave realistically.
+## FR-8 — Fingerprint templates (placeholder blobs in v1)
+No real biometrics exist **in v1**; blobs are synthetic but structurally plausible (≥ 500 B, `SS21`-style header) so downstream code paths behave realistically. **Upgraded in Phase 6** (FR-14/FR-17): the stored bytes become real ISO/IEC 19794-2 templates and live in the encrypted `BiometricStore` — **this FR's wire behaviour does not change at all** (same commands, same envelopes, same probe semantics), which is what keeps BITS compatible.
 - **Read:** `CMD_USERTEMP_RRQ` (9, payload uid u16 + finger u8) → enrolled slot: single `CMD_DATA` frame, data = `[entrySize u16][uid u16][fid u8][flag u8=1][template bytes…]`; empty slot: `CMD_ACK_ERROR` (2001) with no data (the BITS driver probes finger counts this way).
 - **Write:** client-initiated flow → `CMD_PREPARE_DATA` (1500, payload `[size u16][00 00]`) → `CMD_DATA` (blob) → `CMD_CHECKSUM_BUFFER` (119) → `CMD_TMP_WRITE` (87, payload `[uid u16][fid u8][flag u8][size u16]`) → `CMD_FREE_DATA`. The simulator stores the blob for that (uid, finger).
 - **Enroll trigger:** `CMD_STARTENROLL` (61, payload `[userId 24 B ascii][finger i8][overwrite flag i8]`) → ACK (optionally emit an `EF_ENROLLFINGER` event sequence in a later phase).
@@ -51,6 +51,7 @@ No real biometrics exist; blobs are synthetic but structurally plausible (≥ 50
 
 ## FR-10 — Demo triggers
 REST: `POST /api/punch` `{ userId, verifyType?, state? }` (creates an attendance record + screen verification event), `GET /api/device/state`, `POST /api/lcd`, `GET /api/users`, `GET /api/attendance`. CLI: `scripts/punch.mjs` for demos without the UI.
+These endpoints are **frozen**: the biometric surface is added as API v2 (FR-18), never by changing these contracts.
 
 ## FR-11 — Device-face web UI
 Bezel-framed kiosk replica per brief §5: idle clock (device time), device name, status-bar glyphs; green pass / red fail verification screens; icon-grid menu skeleton; hardware keypad graphic. Live two-way WebSocket sync with engine state (punch from UI → protocol-visible immediately; backend writes → screen reflects). LCD commands (`CMD_WRITE_LCD` 66 / `CMD_CLEAR_LCD` 67) mirror text onto the screen.
@@ -61,6 +62,36 @@ In-memory store default. Optional SQLite (`better-sqlite3`) behind the `DeviceSt
 ## FR-13 — Seed data
 Named fake employees (uid/userId/role/card), a week of varied attendance (on-time / late / absent), and enrolled placeholder fingerprints. Seeding shares the FR-4 time codec.
 
+## FR-14 — Real fingerprint enrollment (Phase 6)
+Enroll a real finger for an employee through a capture station (FR-16) and store a **real ISO/IEC 19794-2 template**.
+- Flow: N samples (default 3) → per-sample quality gate (reject `too-dark` / `too-blurry` / `partial-finger` with an actionable reason) → minutiae extraction → mutual consistency check between samples → encrypted store (FR-17) → audit entry.
+- Enrollment is an explicit, consent-gated action (NFR-10) — never silent or bulk.
+- Fingerprint **images are never persisted**; only templates (data minimisation, ADR-011).
+- **FR-8 wire behaviour is unchanged:** `CMD_USERTEMP_RRQ` / write flow / `CMD_DELETE_USERTEMP` keep byte-identical envelopes — only the bytes stored become real instead of synthetic. `FpTemplate` carries `format: 'synthetic' | 'iso19794-2'` from Phase 1 so no migration is needed.
+- Gate: enroll → read the template back over the protocol with the oracle → delete → probe returns the empty-slot error, exactly as FR-8 specifies.
+
+## FR-15 — Identification & verification at punch (Phase 6)
+- **1:N identify** on a captured probe: ranked candidates; punch accepted only if the top candidate clears the accept threshold **and** is adequately separated from the runner-up.
+- **1:1 verify** for explicit "employee N + finger" checks.
+- Outcomes map to existing device behaviour: accepted → `AttendanceRecord` with `verifyType=1` (genuinely earned) + green pass screen; rejected/ambiguous → red fail screen and **no record**.
+- `IDENTIFY_FAILURE` handling: matcher unreachable ⇒ HTTP 503 and a visible "service unavailable" state — **never** auto-accept (ADR-010, `../architecture/biometric-core.md` §5).
+- Legacy trigger (`POST /api/punch`, FR-10) remains available for demos without a live capture; it composes with — never replaces — this path.
+
+## FR-16 — Capture stations (Phase 7)
+Implement ADR-009's `CaptureStation` interface with adapters added independently:
+1. **Camera (PWA) — first**: `getUserMedia`, framing/guidance overlay, capture → `POST /api/biometric/capture` (multipart), server-side segmentation → enhancement → minutiae → quality gate, quality feedback returned to the page. No hardware, no app store.
+2. **Android + USB-OTG scanner**: USB Host API + USB-serial bridge + sensor module, normalized to ISO 19794-2, posting to the same endpoint.
+3. **Import** (seeding) and **fixture** (tests) stations complete the set.
+- Documented quality bar: camera = demo-grade, sensor = real (§`../status/known-limitations.md`).
+
+## FR-17 — Encrypted biometric store (Phase 6)
+`BiometricStore` interface alongside `DeviceStore`; AES-256-GCM ciphertext at rest; key from `ZK_BIOMETRIC_KEY`; **template payloads redacted in packet logs and API responses**; deletion paths (`CMD_DELETE_USERTEMP`, `CMD_CLEAR_DATA` type 2, employee delete, `POST /api/biometric/purge`) remove ciphertext permanently.
+
+## FR-18 — Biometric REST API v2 (Phase 6)
+Additive to API v1 (FR-10 — unchanged, byte-for-byte): `POST /api/biometric/capture`, `POST /api/biometric/enroll`, `POST /api/biometric/identify`, `POST /api/biometric/verify`, `GET /api/biometric/status`, `POST /api/biometric/purge`. This is the **open substitute surface**: any system (not just ZK clients) can enroll, identify and verify through documented JSON.
+
 ## Explicitly out of scope (v1)
 UDP transport, iFace-specific screens, access-control modules (timezones/groups/anti-passback), SMS/Mifare/operation-log commands. Unimplemented commands reply `CMD_ACK_UNKNOWN` (65535) — clients tolerate it; see `../status/known-limitations.md`.
+
+**Not out of scope, but later:** real biometrics (FR-14…FR-18) are **Phase 6–8**, not v1 — planned and architected now (`../architecture/biometric-core.md`) so Phases 1–5 need no rework. Phone built-in/in-display sensors are the only biometric item permanently ruled out (platform-level impossibility — `../research/biometrics.md` §2).
 

@@ -6,6 +6,15 @@ It is deliberately separate from the application repository (`zkteco-simulator-a
 - **This repo** explains *how and why* the system works — research, architecture, decisions, plans, troubleshooting.
 - **The app repo** contains *the system itself* — source code, tests, run configuration.
 
+## Scope
+
+The system is being built in two horizons, both documented here:
+
+1. **v1 — the simulator (Phases 1–5):** protocol-faithful ZKTeco terminal emulation on TCP :4370 + device-face UI, with triggered (not scanned) punches.
+2. **Substitute extension (Phases 6–8):** real fingerprint enrollment and matching (camera capture first, USB-OTG scanner later), an encrypted biometric store, and an open REST surface — with the ZK protocol surface frozen so the BITS backend and base demo never depend on any of it.
+
+Two items are **permanently out of scope**, with the reasons documented rather than deferred: using a phone's built-in/in-display fingerprint sensor as a capture device (platform isolation), and template interoperability with real ZKTeco firmware (proprietary formats). See `simulator-docs/status/known-limitations.md`.
+
 ## Entry point
 
 All documentation lives under [`simulator-docs/`](./simulator-docs/README.md).

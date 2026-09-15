@@ -27,6 +27,15 @@ Dev-dependency `node-zklib@1.3.0` **pinned exact** (same artifact as `C:/bits/ba
 ### L4 — Manual visual QA (Phase 4)
 Bezel/glyph/typography checklist in `web-ui.md`; screenshots archived in the app repo.
 
+### L5 — Biometric (Phase 6–8; never depends on hardware)
+- **Matcher spike bench** (ADR-010 criteria): 10 enrolled templates → 10/10 correct identify; impostor rejected; latency recorded.
+- **Enrollment unit tests** via the **fixture capture station** (pre-made ISO templates in `test/fixtures/`): N-sample consistency gate, quality rejections (`too-dark`, `too-blurry`, `partial-finger`), image never persisted.
+- **Store tests:** ciphertext at rest (assert the raw bytes on disk/`Buffer` are not the plaintext template), key-missing behaviour, delete/purge leaves nothing.
+- **Leak tests:** packet log and API responses contain `<TEMPLATE n bytes>` redactions, never template bytes.
+- **Degradation tests (NFR-12):** with the matcher and all stations absent — protocol suite still green, biometric endpoints return 503, and **no punch is ever auto-accepted**.
+- **Protocol non-regression (the critical one):** with real stored templates, the oracle's `getFingerCount` / `getFingerTemplate` / `setFingerTemplate` / `deleteUserTemplate` call patterns still pass byte-for-byte against FR-8.
+- **Camera station (Phase 7):** scripted browser check for permission-denied and quality-rejection UX; manual quality assessment on real captures is a *documented, human-judged* step (not an automated pass/fail).
+
 ## 2. Running
 ```bash
 npm install            # installs pinned oracle as devDependency

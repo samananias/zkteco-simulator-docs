@@ -2,7 +2,9 @@
 
 Maps every requirement of the original brief to its feasibility verdict, current requirement, development phase and status. This is the anti-drift document: when implementation deviates, update the row and `../status/change-history.md`.
 
-Legend — Feasibility: **FF** Fully Feasible · **FM** Feasible With Modification · **TR** Technically Risky · **DE** Dependent on External (hardware/software) · **NF** Not Feasible as Proposed. Status: ⬜ pending · 🔨 Phase n · ✅ done.
+Legend — Feasibility: **FF** Fully Feasible · **FM** Feasible With Modification · **TR** Technically Risky · **DE** Dependent on External (hardware/software) · **NF** Not Feasible as Proposed. Status: ⬜ pending · 🔨 Phase n · ✅ done · **(ruled out)** = permanently excluded, boundary documented.
+
+**Scope extension (2026-09-15):** rows below the brief-derived set come from owner direction to evolve the simulator into a **ZKTeco substitute** (real biometrics). Evidence: `../research/biometrics.md`; design: `../architecture/biometric-core.md`; decisions: ADR-009…ADR-011.
 
 | Brief item (§) | Verdict | Current requirement | Phase | Status |
 |---|---|---|---|---|
@@ -30,3 +32,10 @@ Legend — Feasibility: **FF** Fully Feasible · **FM** Feasible With Modificati
 | Depth of visual fidelity (8-Q4) | Idle + verify screens first; menu skeleton later | FR-11 | 4 | ⬜ |
 | "Indistinguishable from real device" (1) | FM — reframed honestly: protocol-compatible at command level + visual replica | NFR-08, limitations doc | — | ⬜ |
 | Phase 3 menu system (6-Phase 3) | Partially in scope — icon-grid skeleton, not full menu logic | FR-11 | 4 | ⬜ |
+| Phone built-in / in-display sensor as capture device (owner direction 2026-09-15) | **NF** — platform isolation (TEE / Secure Enclave): no raw capture API, no app-facing enrollment API `[V]` | — (permanent boundary, documented) | — | (ruled out) |
+| Real enrollment + matching (simulator → ZKTeco substitute) | **FM** — requires capture station + ISO templates + out-of-process matcher (no Node AFIS exists `[V]`) | FR-14, FR-15 | 6 | ⬜ |
+| Camera touchless capture (zero hardware) | **FF for demo-grade quality** (quality bar documented, not hidden) | FR-16 | 7 | ⬜ |
+| Android + USB-OTG scanner capture | **DE** `[A]` — depends on a purchased module + integration validation | FR-16 | 7 | ⬜ |
+| Encrypted biometric storage + consent/retention | **FF** | FR-17, NFR-10, NFR-11 | 6 | ⬜ |
+| Open REST surface for non-ZK integrators | **FF** | FR-18 | 6 | ⬜ |
+| Template interop with real ZKTeco hardware | **NF** — proprietary ZKFinger-family formats, no public converter `[A]` | — (permanent boundary) | — | (ruled out) |

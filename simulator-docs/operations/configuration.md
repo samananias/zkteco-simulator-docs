@@ -18,6 +18,12 @@ Single source: environment variables + optional CLI flags (12-factor style, no c
 | `ZK_STORE` | `memory` | `memory` \| `sqlite` (Phase 5) |
 | `ZK_SQLITE_PATH` | `./data/device.sqlite` | SQLite file when `ZK_STORE=sqlite` |
 | `ZK_LOG_LEVEL` | `info` | `debug` adds per-frame hex dumps (NFR-09) |
+| `ZK_MATCHER_URL` | *(empty)* | Matcher sidecar base URL (`http://127.0.0.1:8090`); empty ⇒ biometric features disabled (NFR-12) |
+| `ZK_BIOMETRIC_KEY` | *(empty)* | AES-256-GCM key for biometric templates at rest (ADR-011). Empty in dev ⇒ auto-generated key with a loud warning; **never** committed or logged. Required in any real deployment |
+| `ZK_BIOMETRIC_DATA` | `./data/biometric` | Directory for encrypted template storage (git-ignored) |
+| `ZK_MATCH_THRESHOLD` | *(engine default)* | Accept threshold for 1:N identify — tunable per deployment, never hard-coded (research Q4) |
+| `ZK_MATCH_SEPARATION` | *(engine default)* | Minimum gap between best and runner-up candidate required to accept (ambiguity guard) |
+| `ZK_CAPTURE_SAMPLES` | `3` | Samples required per enrollment (FR-14) |
 
 ## Precedence & validation
 CLI flags (e.g. `--zk-tcp-port 4371`) override env; invalid values fail fast at boot with the expected type/range in the message. All ports pre-flighted (bind check) before the "ready" log line.

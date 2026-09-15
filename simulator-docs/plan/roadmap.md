@@ -39,3 +39,17 @@ Repos established (`zkteco-simulator-app`, `docs`), research verified against sp
 
 ## Milestones after v1 (non-committed)
 UDP transport · pyzk cross-oracle CI · iFace theme · multi-device instances · Docker packaging — see `../status/future-work.md`.
+
+---
+
+## Scope extension — ZKTeco substitute (decided 2026-09-15)
+
+Owner direction: the project should not stop at *simulating* a terminal but become a **usable ZKTeco substitute** — real fingerprint enrollment and real matching, with the ZK protocol surface frozen so BITS keeps working unmodified. Research: `../research/biometrics.md`. Design: `../architecture/biometric-core.md`, `capture-stations.md`.
+
+| Phase | Content | Gate | Docs |
+|---|---|---|---|
+| **6 — Biometric core** | ADR-010 spike (matcher sidecar) → `BiometricStore` with AES-256-GCM at rest (ADR-011) → enrollment service (N samples + quality gate) → 1:N identify + 1:1 verify → REST API v2 (FR-14…FR-15, FR-17, FR-18) | Spike criteria in ADR-010 met (10/10 identify, `< 200 ms`); enroll → read template back via oracle → delete → probe error (FR-8 unchanged); no plaintext template in log/API output | biometric-core, ADR-010 (→accepted), ADR-011, configuration, security, change-history |
+| **7 — Capture stations** | Camera PWA station first (FR-16.1), then Android + USB-OTG scanner adapter (FR-16.2); import + fixture stations for seeding/tests | Live enroll from the camera station → punch identified on the device-face UI **and** ingested by BITS; module validation result recorded (research `[A]` → `[V]`) | capture-stations, biometrics research, known-limitations, troubleshooting |
+| **8 — Substitute hardening** | API v2 docs, consent/retention flows, multi-station operation, deployment/run guide, ADR-010 acceptance finalized | BITS runs a full workday against the substitute with real punches; `purge` leaves no ciphertext; docs pass complete | api-and-events, security, setup, future-work, change-history |
+
+**Ordering rule:** Phases 6–8 never start before Phase 1–5 gates are green. Phases 1–5 are the foundation a substitute needs (the frozen protocol surface is what makes it a *substitute* rather than a separate product); the two forward-compatibility hooks (`FpTemplate.format`, `BiometricStore` interface) are the only Phase-1–5 concessions, and they cost nothing.

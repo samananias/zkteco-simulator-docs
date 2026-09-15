@@ -1,8 +1,10 @@
 # ZKTeco Simulator App — Documentation Index
 
-**Project in one paragraph:** a software simulator of a ZKTeco standalone biometric attendance terminal. It speaks the same binary protocol a real device speaks on TCP port 4370, so the existing BITS attendance backend (Node.js, `node-zklib@1.3.0`) connects **with zero code changes** — and it renders a bezel-framed web UI that visually mimics the physical device for portfolio demos. Biometric capture is simulated (a punch is triggered, not scanned); everything else is protocol-faithful.
+**Project in one paragraph:** a software simulator of a ZKTeco standalone biometric attendance terminal. It speaks the same binary protocol a real device speaks on TCP port 4370, so the existing BITS attendance backend (Node.js, `node-zklib@1.3.0`) connects **with zero code changes** — and it renders a bezel-framed web UI that visually mimics the physical device for portfolio demos. In v1, biometric capture is simulated (a punch is triggered, not scanned); everything else is protocol-faithful.
 
-**Current status:** Phase 0 complete — research, feasibility analysis, architecture and documentation foundation done. Implementation begins at Phase 1 (see `plan/roadmap.md`).
+**Planned scope extension (decided 2026-09-15):** the project is intended to become a **usable ZKTeco substitute** — real fingerprint enrollment and real matching (camera capture first, USB-OTG scanner later), while the ZK protocol surface stays frozen so BITS keeps working unmodified. Phases 6–8; research in `research/biometrics.md`, design in `architecture/biometric-core.md`. **Phases 1–5 are unchanged and come first.**
+
+**Current status:** Phase 0 complete — research (protocol + biometrics), feasibility analysis, architecture and documentation foundation done. Implementation begins at Phase 1 (see `plan/roadmap.md`).
 
 **Validation oracle (pinned):** `node-zklib@1.3.0` as installed in `C:/bits/backend` (plus its `patch-package` control-flow fix), driven exactly the way `C:/bits/backend/src/shared/lib/zk-driver.ts` drives it.
 
@@ -13,9 +15,9 @@
 | Folder | Files | Read when |
 |---|---|---|
 | `requirements/` | `00-original-brief.md` (archived spec, immutable), `functional.md`, `non-functional.md`, `traceability.md` | You need the current committed scope, or want to trace any brief item to its fate |
-| `research/` | `zk-protocol-notes.md`, `client-libraries.md`, `feasibility-report.md` | You touch anything wire-level, or want to know why something is built a certain way |
-| `architecture/` | `system-architecture.md`, `protocol-engine.md`, `data-model.md`, `web-ui.md`, `api-and-events.md` | You implement or review a module |
-| `decisions/` | `README.md` (ADR index + template), `ADR-001` … `ADR-008` | You want the reasoning behind a choice, or need to make a new decision |
+| `research/` | `zk-protocol-notes.md`, `client-libraries.md`, `feasibility-report.md`, `biometrics.md` | You touch anything wire-level, or want to know why something is built a certain way (or whether a biometric idea is actually possible) |
+| `architecture/` | `system-architecture.md`, `protocol-engine.md`, `data-model.md`, `web-ui.md`, `api-and-events.md`, `biometric-core.md`, `capture-stations.md` | You implement or review a module |
+| `decisions/` | `README.md` (ADR index + template), `ADR-001` … `ADR-011` | You want the reasoning behind a choice, or need to make a new decision |
 | `plan/` | `roadmap.md`, `revised-project-plan.md`, `testing-strategy.md` | You start a phase or write tests |
 | `operations/` | `setup.md`, `configuration.md`, `troubleshooting.md`, `security.md` | You run, configure, or debug the system |
 | `process/` | `development-workflow.md`, `documentation-policy.md` | You make any change |
@@ -28,6 +30,8 @@
 - The BITS backend polls attendance on a ~30 s scheduler and **does not** consume realtime event packets; events are still implemented (gated per session) for the web UI and future clients.
 - The backend talks **TCP only** (it deliberately bypasses node-zklib's UDP fallback) and uses **no comm key**.
 - Existing open-source ZKTeco simulators: effectively none — this project is prior-art-light by design.
+- Biometrics (Phase 6+): phone built-in/in-display sensors are **unusable by platform design** (TEE/Secure Enclave — no capture or enrollment API) `[V]`; capture is camera (demo-grade, zero hardware) or USB-OTG scanner (real quality) — `research/biometrics.md`.
+- No usable fingerprint **matcher** exists in the npm ecosystem `[V]`; matching is isolated in an optional out-of-process sidecar (ADR-010), and our templates are ISO 19794-2 — **not** interchangeable with ZKTeco's proprietary firmware formats.
 
 ## Conventions
 
