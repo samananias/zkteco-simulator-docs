@@ -6,6 +6,8 @@
 
 **Validation oracle (pinned):** `node-zklib@1.3.0` as installed in `C:/bits/backend` (plus its `patch-package` control-flow fix), driven exactly the way `C:/bits/backend/src/shared/lib/zk-driver.ts` drives it.
 
+**Companion application repository:** [`samananias/zkteco-simulator-app`](https://github.com/samananias/zkteco-simulator-app) — the simulator this knowledge base documents.
+
 ## Document map
 
 | Folder | Files | Read when |

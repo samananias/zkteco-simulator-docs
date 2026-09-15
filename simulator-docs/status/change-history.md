@@ -4,6 +4,14 @@ Reverse-chronological. One entry per phase, decision, or significant fix (see `.
 
 ---
 
+## 2026-09-15 — Repositories published
+
+Both repositories published publicly on GitHub under the `samananias` organization:
+[`zkteco-simulator-app`](https://github.com/samananias/zkteco-simulator-app) and
+[`zkteco-simulator-docs`](https://github.com/samananias/zkteco-simulator-docs) (this repository).
+Cross-links between the two READMEs updated to the published URLs; `.gitattributes` added to both.
+From now on, every commit to `main` is published with a plain `git push`.
+
 ## 2026-09-15 — Phase 0: Foundations complete
 
 **What**

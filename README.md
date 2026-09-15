@@ -21,7 +21,7 @@ All documentation lives under [`simulator-docs/`](./simulator-docs/README.md).
 
 ## Related repositories / codebases
 
-| Path | Role |
+| Repository | Role |
 |---|---|
-| `../zkteco-simulator-app/` | The simulator application (implements what is documented here). |
-| `C:/bits/backend` | The existing OJT attendance system (Node.js + node-zklib@1.3.0) that the simulator must serve **unmodified**. Its `src/shared/lib/zk-driver.ts` defines the exact client behavior the simulator is validated against. |
+| [`samananias/zkteco-simulator-app`](https://github.com/samananias/zkteco-simulator-app) (local: `../zkteco-simulator-app/`) | The simulator application — implements what is documented here. |
+| [`avegabros/bits`](https://github.com/avegabros/bits) (local: `C:/bits/backend`) | The BITS attendance system (Node.js + node-zklib@1.3.0) that the simulator must serve **unmodified**. Its `src/shared/lib/zk-driver.ts` defines the exact client behavior the simulator is validated against. |
