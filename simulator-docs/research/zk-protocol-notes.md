@@ -123,3 +123,20 @@ seconds = ((year-2000)*12*31 + (month-1)*31 + (day-1)) * 86400
 - `[A]` Exact options keys a future client might require beyond the backend's set (non-blocking: unknown keys return `ACK_UNKNOWN` + empty value).
 - `[A]` pyzk end-to-end behavior as a *second* oracle (its `CMD_DB_RRQ`/`CMD_ATTLOG_RRQ` read style is implemented per spec but not yet integration-tested).
 
+## 10. Oracle integration findings (Phase 1 — verified against source + live tests)
+
+These close the §9 open items and correct two earlier readings. All `[V]` — from `node-zklib@1.3.0` source read line-by-line and confirmed by the passing integration suite.
+
+| # | Finding | Consequence for the simulator |
+|---|---|---|
+| 1 | `executeCmd()` resolves with **`removeTcpHeader(reply)` = the 8-byte frame + payload** (not a parsed object, not the raw packet) | Our replies are consumed as `[cmd@0][chk@2][session@4][reply@6][payload@8]`; `getInfo` reads the *frame* at 24/40/72 → payload offsets 16/32/64 |
+| 2 | **Direct-burst reads must be a single `CMD_DATA` frame with NO leading ACK.** `requestData()` resolves on the *first non-event chunk with prefix length > 8*; an ACK would resolve the collector and steer `readWithBuffer` into its chunked branch (deadlock — observed as the oracle's 10 s timeout) | ADR-004 direct mode: WRRQ → one `CMD_DATA` dataset frame, nothing else. Confirmed green: `getUsers`/`getAttendances` parse in ~1 s |
+| 3 | Chunked collector arithmetic (if ever driven): expects `realTotalBuffer.length === chunkSize + 8` and appends `payload.subarray(8)` — each `CMD_DATA` chunk payload carries an **8-byte opaque sub-header** | §9 open item resolved: sub-header = 8 bytes, content unvalidated; our chunked mode prepends 8 zero bytes with the slice length at offset 0 |
+| 4 | `CMD_CONNECT`: the client adopts `reply.readUInt16LE(4)` (the **session field**) into `this.sessionId`, then sends it on every later packet | Our CONNECT reply carries the assigned session id in the session field; all other replies echo the request's session/reply fields |
+| 5 | `createTCPHeader` computes the checksum **then** writes `replyId+1` into the frame (§2 confirmed) | The oracle never validates received checksums → ADR-005 lenient default stays correct; its own outbound packets would fail strict validation |
+| 6 | `getRealTimeLogs` only registers its event listener when `listenerCount('data') === 0`, and the chunked collector's listener is **never removed** | In chunked mode stale listeners would silently suppress events; direct mode leaves zero stale listeners → realtime works (integration-tested: REST punch → `EF_ATTLOG` callback) |
+| 7 | Event parse: `decodeRecordRealTimeLog52` = frame minus prefix, payload from +8: `userId` ascii 9 B@0, raw time 6 B@26 (`20YY MM DD HH MM SS`, month −1 on parse) | Our 32-B event record satisfies it exactly |
+| 8 | `decodeUserData72` exposes `{uid, role, password, name, cardno, userId}`; `decodeRecordData40` → `{userSn, deviceUserId, recordTime}` | Record layouts §5 confirmed end-to-end |
+
+**Test evidence (2026-09-15):** `test/unit` 11/11, `test/integration/oracle` 11/11 (connect, getInfo, getUsers, getAttendances, GET_TIME, 72-B user write + delete, full FR-8 template write→read→empty-probe→delete, EF_ATTLOG realtime, CLEAR_ATTLOG, UI smoke, ACK_UNKNOWN), `test/integration/sqlite` 3/3.
+

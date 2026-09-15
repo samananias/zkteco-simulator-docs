@@ -29,13 +29,11 @@ Unknown command → `CMD_ACK_UNKNOWN` (65535) + warn log (never disconnect).
 ## 3. Read-path state machine (oracle-critical)
 
 ```text
-CMD_DATA_WRRQ(payload) ──► classify payload (users | attendance | unknown)
-   ──► store.snapshot() → dataset = [u32 size][records…]
-   ──► set in-flight = true
-   ──► write CMD_DATA frame(s): one frame if ≤ 65 000 B, else back-to-back frames
-   ──► after last byte flushed: keep in-flight ~ quiet-window, then false
+CMD_DATA_WRRQ(payload) ──> classify payload (users | attendance | unknown)
+   then: store.snapshot() -> dataset = [u32 total][records...]
+   then: write ONE CMD_DATA frame (direct burst) — and NOTHING else
 ```
-Rationale: node-zklib 1.3.0 resolves on the *first* reply packet for non-`CMD_DATA` commands and on **1 s of socket silence** for `CMD_DATA` reads, accumulating everything `[V]`. A single burst inside that window is the deterministic path. Chunked mode (ADR-004) is a config-gated alternate implementing the spec conversation exactly.
+**Verified against the oracle source (Phase 1, `zklibtcp.js`) — the decisive rule:** `requestData()` resolves on the **first non-event TCP chunk whose prefix length > 8**. If an `ACK_OK` is sent before the dataset, the ACK itself resolves the collector; `readWithBuffer` then decodes `CMD_ACK_OK` and falls into the *chunked* collector, which waits for `CMD_DATA_RDY`-driven chunks — a deadlock (observed as the oracle's 10 s timeout). Because our single `CMD_DATA` frame decodes as `CMD_DATA`, `readWithBuffer` takes the direct branch and returns `{ data: packet.subarray(16) }` = `[u32 total][records]` — exactly what `getUsers`/`getAttendances` slice (they skip 4 bytes). Integration-tested green. Chunked mode (ADR-004, config-gated) answers each client `CMD_DATA_RDY` with one `CMD_DATA` frame whose payload carries an **8-byte per-chunk sub-header** before the slice: the collector's resolve arithmetic is `realTotalBuffer.length === chunkSize + 8`, then `replyData += payload.subarray(8)`.
 
 ## 4. Realtime event emission (ADR-006)
 

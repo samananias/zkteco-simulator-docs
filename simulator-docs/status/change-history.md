@@ -4,6 +4,22 @@ Reverse-chronological. One entry per phase, decision, or significant fix (see `.
 
 ---
 
+## 2026-09-15 — Phases 1–5 implemented; oracle gates green
+
+**What**
+- Full simulator implemented (app repo `2f71368`): protocol engine (TCP :4370), frame/checksum/time codecs, record codecs, in-memory + sqlite stores, seed profiles, realtime `EF_ATTLOG` with per-session gating, REST + WebSocket layer, device-face UI (bezel, clock, verify overlays, keypad, LCD), punch CLI.
+- **25/25 tests green:** 11 golden-byte unit (checksum verified against an independent reference implementation), 11 oracle integration (real `node-zklib@1.3.0`: connect → getInfo → getUsers → getAttendances → GET_TIME → driver-style 72-B user write/delete → full FR-8 template write→read-back→empty-probe→delete → realtime event on REST punch → CLEAR_ATTLOG → UI smoke → ACK_UNKNOWN), 3 sqlite gate. CLI boot smoke-verified.
+
+**Key discoveries (now in `../research/zk-protocol-notes.md` §10)**
+- The oracle's read path resolves on the *first non-event chunk* — a leading ACK before the dataset deadlocks it. Direct-burst = one `CMD_DATA` frame, nothing else.
+- `executeCmd` resolves the raw frame buffer → `getInfo` capacity offsets are frame-relative (payload 16/32/64).
+- The chunked collector's per-chunk 8-byte sub-header arithmetic is now known (was open item).
+- Seed employee IDs are `1001`–`1005` (RFC: matches the backend's realistic userId space).
+
+**Docs updated:** protocol-engine read-path (verified rule), roadmap Phases 1–5 checked with evidence, traceability rows 1–16 ✅.
+
+**Next:** Phases 6–8 (biometric substitute) per plan; Phase 6 starts with the ADR-010 matcher spike.
+
 ## 2026-09-15 — Scope extension: simulator → ZKTeco substitute (biometrics planned)
 
 **What**
