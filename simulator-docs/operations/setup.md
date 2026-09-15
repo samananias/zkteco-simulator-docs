@@ -16,10 +16,24 @@ zkteco-simulator/
 ```bash
 cd zkteco-simulator-app
 npm install
-npm run dev        # protocol engine :4370 + HTTP/WS :3000 + seed data
+npm run dev            # protocol engine :4370 + HTTP/WS :3000 + seed data
 # production-ish:
 npm run build && npm start
 ```
+
+### 3b. Full biometric experience (Phase 6+) — optional
+Requires **JDK 17+** (`java` on PATH). Everything else installs with `npm install`.
+```bash
+npm run dev:biometric
+```
+This starts the matcher sidecar (default `127.0.0.1:28090`, override with `ZK_MATCHER_PORT`) and the simulator with `ZK_MATCHER_URL` wired to it — one command, both runtimes, Ctrl+C stops both. Without it, the simulator behaves exactly as in §3 (biometric endpoints answer 503 — NFR-12, never auto-accept).
+
+For persistence across restarts set a stable key before enrolling real templates:
+```bash
+# 32 bytes — hex (any generator, e.g. node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+export ZK_BIOMETRIC_KEY=<64 hex chars>
+```
+Without it a process-session key is used with a loud warning: enrolled templates become unreadable after restart (re-enrollment is the recovery path — ADR-011). Encrypted records live under `./data/biometric/` (git-ignored).
 
 ## 4. Point the BITS backend at the simulator
 The backend resolves devices from `ZK_HOST`/`ZK_PORT` env or per-device rows in its DB.
