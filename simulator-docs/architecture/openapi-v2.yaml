@@ -1,0 +1,581 @@
+openapi: 3.0.3
+info:
+  title: ZKTeco Substitute — Biometric REST API v2
+  version: "2.0.0"
+  description: |
+    Additive to API v1 (`/api/punch`, `/api/users`, …) which is unchanged, byte for byte.
+
+    This is the **open substitute surface**: any system (not just ZK clients) can enrol,
+    identify and verify through documented JSON. The ZK protocol surface (FR-8) stays
+    frozen, so BITS keeps working without modification.
+
+    Hard rules that shape every response here (ADR-011):
+    - Template bytes are **never** returned except by `/capture`, and then only to the
+      client that just presented the finger (the stateless enrollment ceremony needs it).
+    - Rosters and status are **metadata only** — no template field exists.
+    - Rejections always carry an actionable reason. `503` means "I cannot check right
+      now", which is deliberately different from `no-match` ("I don't know you").
+    - The subsystem is optional: with no matcher configured every endpoint answers `503`
+      (NFR-12) and nothing ever auto-accepts.
+  license:
+    name: Project documentation
+    url: ../README.md
+servers:
+  - url: http://localhost:3000
+    description: Local/default (see `../operations/deployment.md` for real deployments)
+tags:
+  - name: status
+    description: Subsystem state and policy in force
+  - name: consent
+    description: Consent statement, records and withdrawal (ADR-011 §4/§5)
+  - name: enrollment
+    description: Enrolled templates (metadata) and enrollment
+  - name: matching
+    description: Capture, 1:N identify, 1:1 verify and the punch controller
+  - name: data-protection
+    description: Removal and purging paths
+
+paths:
+  /api/biometric/status:
+    get:
+      tags: [status]
+      summary: Matcher reachability, counts and the policy in force
+      responses:
+        "200":
+          description: Status (all fields are metadata)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/consent:
+    get:
+      tags: [consent]
+      summary: The consent statement this deployment collects against
+      description: |
+        The enrollment page renders **this** text; the consent record stores the version
+        and hash, so a record always names the exact wording that was agreed to.
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsentStatement" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/consents:
+    get:
+      tags: [consent]
+      summary: Consent roster (metadata only, no biometrics)
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [consents]
+                properties:
+                  consents:
+                    type: array
+                    items: { $ref: "#/components/schemas/ConsentRecord" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/enrollments:
+    get:
+      tags: [enrollment]
+      summary: Enrollment roster (metadata only — templates never appear)
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enrollments]
+                properties:
+                  enrollments:
+                    type: array
+                    items: { $ref: "#/components/schemas/Enrollment" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/capture:
+    post:
+      tags: [matching]
+      summary: Quality gate + minutiae extraction for one presented finger
+      description: |
+        Body is a **raw image** (octet-stream: JPEG/PNG/BMP) — one code path, consistent
+        with the rest of the surface (documented deviation from the pre-implementation
+        multipart draft). The image exists only inside this call and is never persisted
+        (ADR-011 §1). Measurement happens in the sidecar; the acceptance policy is
+        app-side and its thresholds are configurable (ADR-011 §7).
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+              description: JPEG, PNG or BMP frame
+      responses:
+        "200":
+          description: Accepted — the template is returned to the client that presented it
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CaptureAccept" }
+        "409":
+          description: Rejected by the quality gate, with an actionable reason
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CaptureReject" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/enroll:
+    post:
+      tags: [enrollment]
+      summary: Enroll a finger (N-sample ceremony, or single-template import)
+      description: |
+        Two forms:
+        - `samples[]` — the **ceremony** (FR-14). Every sample pair must clear the accept
+          threshold on the engine's consistency check before anything is stored; the most
+          central sample becomes the template. Inconsistent samples store nothing.
+        - `templateB64` — the **import station** (`source: imported`).
+
+        Consent is mandatory and versioned: `consentVersion` must match the statement
+        currently served, otherwise `409` (a page presenting outdated text must not collect
+        consent). On success the encrypted copy, the FR-8 wire copy and the matcher
+        candidate are written, and a consent record is created.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EnrollRequest" }
+      responses:
+        "200":
+          description: Enrolled (all three stores agree, or nothing was written)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnrollResult" }
+        "400":
+          description: Missing consent, invalid finger, too few/too-short samples, bad payload
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Unknown employee
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Inconsistent samples, or a stale consent statement version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/identify:
+    post:
+      tags: [matching]
+      summary: 1:N search for a probe template — decision only, no side effects
+      description: |
+        Side-effect free by design: recording happens in `/punch`. Useful as a dry run, or
+        for an external system that wants the verdict without touching attendance.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TemplateRequest" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IdentifyResult" }
+        "400":
+          description: Template missing or too short
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/verify:
+    post:
+      tags: [matching]
+      summary: 1:1 verification of an explicit employee + finger
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, finger, templateB64]
+              properties:
+                userId: { type: string, example: "1001" }
+                finger: { type: integer, minimum: 0, maximum: 9, example: 0 }
+                templateB64: { type: string, format: byte }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VerifyResult" }
+        "400":
+          description: Template missing or too short
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/punch:
+    post:
+      tags: [matching]
+      summary: The punch controller — identify, then record attendance
+      description: |
+        The composition point of `biometric-core.md` §2: identify → on a match create an
+        `AttendanceRecord` with `verifyType=1` (genuinely earned) through the same store and
+        event-bus path as `/api/punch`, so the device face shows the employee's name and
+        registered ZK sessions receive an `EF_ATTLOG` frame (BITS ingests it within ~30 s).
+
+        `no-match` / `ambiguous` ⇒ no record, red fail screen. Sidecar down ⇒ `503`,
+        **never** an auto-accept.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [templateB64]
+              properties:
+                templateB64: { type: string, format: byte }
+                state: { type: integer, minimum: 0, maximum: 5, default: 0 }
+                station: { type: string, description: "Station attribution for logs; defaults to ZK_STATION_ID" }
+      responses:
+        "200":
+          description: Either a pass (record created) or a rejection (no record)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PunchResult" }
+        "404":
+          description: The matched candidate has no employee record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Device disabled by an admin (`CMD_DISABLEDEVICE`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/remove:
+    post:
+      tags: [data-protection]
+      summary: Delete one enrollment (one employee, one finger)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, finger]
+              properties:
+                userId: { type: string, example: "1001" }
+                finger: { type: integer, minimum: 0, maximum: 9, example: 0 }
+      responses:
+        "200":
+          description: Removal performed (ciphertext + wire copy + matcher candidate)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/withdraw:
+    post:
+      tags: [data-protection, consent]
+      summary: Withdraw consent for an employee — deletes every template for them
+      description: |
+        ADR-011 §5 / NFR-10 — "a working deletion path per employee". Every template of the
+        employee is removed from the encrypted store, the FR-8 wire copy and the matcher,
+        and their consent record is marked withdrawn (the record is kept as accountability
+        evidence rather than silently erased). Idempotent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: string, example: "1001" }
+                reason: { type: string, example: "employee request" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WithdrawResult" }
+        "404":
+          description: Unknown employee
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+  /api/biometric/purge:
+    post:
+      tags: [data-protection]
+      summary: Wipe everything — ciphertext, wire copies and consent records
+      description: |
+        Requires explicit `{"confirm": true}`. Removes every AES-GCM template file, every
+        FR-8 ISO wire copy and the whole consent ledger. Attendance records are **not**
+        biometric data and are left untouched. Irreversible: employees must re-enrol.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm: { type: boolean, enum: [true] }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PurgeResult" }
+        "400":
+          description: Missing explicit confirmation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+components:
+  responses:
+    Unavailable:
+      description: |
+        The biometric subsystem is disabled or the matcher sidecar is unreachable
+        (NFR-12). This is deliberately distinct from `no-match`: "I cannot check right
+        now" must never look like "I don't know you", and nothing is ever auto-accepted.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: "matcher sidecar unavailable" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+
+    TemplateRequest:
+      type: object
+      required: [templateB64]
+      properties:
+        templateB64:
+          type: string
+          format: byte
+          description: ISO/IEC 19794-2 template, base64
+
+    QualityMetrics:
+      type: object
+      description: Measured in the sidecar during decode; policy is applied app-side (ADR-011 §7)
+      required: [brightness, sharpness, coverage]
+      properties:
+        brightness: { type: number, description: "grayscale mean, 0-255" }
+        sharpness: { type: number, description: "Laplacian variance" }
+        coverage: { type: number, description: "textured-block fraction, 0-1" }
+
+    CaptureAccept:
+      type: object
+      required: [ok, decision, templateB64, quality, score]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        decision: { type: string, enum: [accept] }
+        templateB64:
+          type: string
+          format: byte
+          description: |
+            Returned only to the client that just presented the finger — the stateless
+            enrollment ceremony needs it. Nothing logs it (documented deviation).
+        quality: { $ref: "#/components/schemas/QualityMetrics" }
+        score: { type: number, description: "demo-grade 0-100 quality heuristic" }
+
+    CaptureReject:
+      type: object
+      required: [ok, decision, reason, score]
+      properties:
+        ok: { type: boolean, enum: [false] }
+        decision: { type: string, enum: [reject] }
+        reason:
+          type: string
+          enum: [too-dark, too-blurry, partial-finger, unreadable, poor-quality]
+          description: Actionable — the page turns this into what the user should change
+        quality: { $ref: "#/components/schemas/QualityMetrics" }
+        score: { type: number }
+
+    EnrollRequest:
+      type: object
+      required: [userId, finger, consent]
+      properties:
+        userId: { type: string, example: "1001" }
+        finger: { type: integer, minimum: 0, maximum: 9, example: 0 }
+        consent:
+          type: boolean
+          enum: [true]
+          description: Explicit consent is mandatory (ADR-011 §4) — false is a 400
+        consentVersion:
+          type: string
+          description: |
+            Statement version the enrollee actually read (from `/api/biometric/consent`).
+            A stale value is refused with 409.
+        samples:
+          type: array
+          minItems: 2
+          description: |
+            The ceremony (FR-14). Capture-endpoint outputs. Every pair must clear the
+            accept threshold before anything is stored.
+          items: { type: string, format: byte }
+        templateB64:
+          type: string
+          format: byte
+          description: Single-template alternative to `samples` — the import station
+        quality: { type: integer, minimum: 0, maximum: 100, description: "weakest accepted sample's score" }
+        source:
+          type: string
+          enum: [camera, usb-otg, pc-scanner, imported]
+          default: imported
+        station:
+          type: string
+          description: Station attribution; defaults to ZK_STATION_ID
+
+    EnrollResult:
+      type: object
+      required: [ok, uid, finger, userId]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        uid: { type: integer }
+        finger: { type: integer }
+        userId: { type: string }
+        samples: { type: integer, description: "present only for the ceremony form" }
+        consistency:
+          type: array
+          description: "pairwise scores, present only for the ceremony form"
+          items: { type: number }
+
+    Status:
+      type: object
+      required: [enabled, matcherUp, enrolled, threshold, separation, captureSamples, consents, retentionDays, consentVersion, stationId]
+      properties:
+        enabled: { type: boolean }
+        matcherUp: { type: boolean }
+        matcherTemplates: { type: integer, description: "candidates held by the sidecar (rebuilt from the encrypted store at boot)" }
+        enrolled: { type: integer, description: "enrollments in the encrypted store" }
+        consents: { type: integer, description: "consent records on file (count only)" }
+        threshold: { type: number, description: "accept threshold for 1:N identify and the ceremony consistency bar" }
+        separation: { type: number, description: "minimum gap to the runner-up, else `ambiguous`" }
+        captureSamples: { type: integer, description: "samples required per ceremony (FR-14)" }
+        retentionDays: { type: integer, description: "0 = keep while the employee record exists (ADR-011 §5)" }
+        consentVersion: { type: string, description: "statement version this deployment collects against" }
+        stationId: { type: string, description: "default station attribution (ZK_STATION_ID)" }
+
+    ConsentStatement:
+      type: object
+      required: [version, purpose, text, hash]
+      properties:
+        version: { type: string, example: "v1" }
+        purpose: { type: string, example: "attendance-identification", description: "purpose binding (NFR-10)" }
+        text: { type: string, description: "the exact wording to display; never hard-code it in a page" }
+        hash: { type: string, description: "SHA-256 of `text` — links every consent record to this wording" }
+
+    ConsentRecord:
+      type: object
+      required: [userId, uid, statementVersion, statementHash, purpose, method, station, at]
+      properties:
+        userId: { type: string }
+        uid: { type: integer }
+        name: { type: string, description: "employee name (joined for the admin view)" }
+        statementVersion: { type: string }
+        statementHash: { type: string }
+        purpose: { type: string }
+        method: { type: string, enum: [camera, usb-otg, pc-scanner, imported] }
+        station: { type: string }
+        at: { type: string, format: date-time, description: "when consent was given" }
+        withdrawnAt: { type: string, format: date-time, description: "set once withdrawn; the record is kept as evidence" }
+        withdrawReason: { type: string }
+
+    Enrollment:
+      type: object
+      description: Metadata only — no template field exists anywhere in this schema
+      required: [uid, userId, finger, format, source, station, quality, createdAt]
+      properties:
+        uid: { type: integer }
+        userId: { type: string }
+        name: { type: string }
+        finger: { type: integer, minimum: 0, maximum: 9 }
+        format: { type: string, enum: [iso19794-2, synthetic] }
+        source: { type: string, enum: [camera, usb-otg, pc-scanner, imported] }
+        station: { type: string }
+        quality: { type: integer, minimum: 0, maximum: 100, description: "0 = not measured (e.g. imported fixtures)" }
+        createdAt: { type: string, format: date-time }
+
+    IdentifyResult:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [match, no-match, ambiguous, not-enrolled] }
+        uid: { type: integer }
+        userId: { type: string }
+        score: { type: number, description: "top candidate's matcher score" }
+        runnerUpScore: { type: number, description: "confidence evidence, not just the top score" }
+        reason: { type: string, description: "e.g. 'below threshold', 'runner-up too close — present the finger again'" }
+
+    VerifyResult:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [match, no-match, not-enrolled] }
+        score: { type: number }
+        reason: { type: string }
+
+    PunchResult:
+      type: object
+      required: [result]
+      properties:
+        result: { type: string, enum: [pass, fail] }
+        decision: { type: string, enum: [match, no-match, ambiguous, not-enrolled] }
+        score: { type: number }
+        name: { type: string, description: "employee name on a pass (drives the green screen)" }
+        reason: { type: string, description: "why a presentation was rejected" }
+        record:
+          type: object
+          description: "the created AttendanceRecord (deviceUserId, verifyType=1, state, at) on a pass"
+        error: { type: string, description: "e.g. 'device disabled by admin' (409)" }
+
+    WithdrawResult:
+      type: object
+      required: [ok, userId, uid, removed, consentOnFile]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        userId: { type: string }
+        uid: { type: integer }
+        removed: { type: integer, description: "templates deleted (0 when called again — idempotent)" }
+        consentOnFile: { type: boolean, description: "whether a consent record existed and was marked withdrawn" }
+
+    PurgeResult:
+      type: object
+      required: [ok, purged]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        purged: { type: integer, description: "encrypted templates deleted (consent records are removed too)" }
