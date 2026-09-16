@@ -28,18 +28,25 @@ DeviceStore.onChange(StoreEvent)
 Event types: `punch`, `user-upserted`, `user-deleted`, `attendance-cleared`, `template-changed`, `lcd-changed`, `state-changed`, `option-changed`.
 Rule: the store never knows about TCP or WS; subscribers adapt. This keeps the engine testable without sockets.
 
-## 4. Biometric REST surface — API v2 (Phase 6+, additive)
+## 4. Biometric REST surface — API v2 (Phase 6–7, additive)
 
-Nothing above changes. These endpoints are **new** and only active when a matcher/stations are configured (otherwise 503 — NFR-12).
+Nothing above changes. These endpoints are **new** and only active when a matcher/stations are configured (otherwise 503 — NFR-12). **Implemented 2026-09-16 (Phase 6–7).**
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/biometric/status` | Matcher reachable? stations available? enrolled count? — safe, no template data |
-| POST | `/api/biometric/capture` | Multipart frame (camera station) → quality verdict + reasons, or a one-shot probe template handle |
-| POST | `/api/biometric/enroll` | `{ uid, finger, samples }` → runs the N-sample ceremony, stores encrypted template; returns quality + audit info |
-| POST | `/api/biometric/identify` | Probe (or capture handle) → ranked candidates + verdict; **accepted identify also creates the attendance record** (the substitute's core operation) |
-| POST | `/api/biometric/verify` | `{ uid, finger, probe }` → 1:1 score/verdict |
-| POST | `/api/biometric/purge` | Delete all templates for an employee (or `{}` for a full wipe — explicit confirmation flag required) |
+| GET | `/api/biometric/status` | Matcher reachable? enrolled count? threshold/separation/sample config — no template data |
+| POST | `/api/biometric/capture` | **Raw image body** (octet-stream: JPEG/PNG/BMP) → sidecar extraction + measurement → quality verdict; reject = 409 + actionable reason (`too-dark` / `too-blurry` / `partial-finger`); accept = `{templateB64, quality, score}` |
+| POST | `/api/biometric/enroll` | `{ userId, finger, consent, samples: [templateB64 × N] }` → N-sample ceremony (every pair must clear the accept threshold on the engine's consistency check), then the encrypted triple-write; single-template form (`templateB64`) = the import station |
+| POST | `/api/biometric/identify` | Probe template → `{decision: match\|no-match\|ambiguous\|not-enrolled, uid?, userId?, score, runnerUpScore?}` — **decision only, no side effects** |
+| POST | `/api/biometric/verify` | `{ userId, finger, templateB64 }` → 1:1 `{decision, score}` |
+| POST | `/api/biometric/punch` | **The punch controller** (biometric-core §2): identify → on match, `AttendanceRecord` (verifyType=1) through the same store/event-bus path as `/api/punch` → device face + EF_ATTLOG + BITS; `no-match`/`ambiguous` → fail, no record; sidecar down → 503, never auto-accept |
+| POST | `/api/biometric/remove` | Delete one enrollment (`{userId, finger}`) — encrypted copy + wire copy + matcher |
+| POST | `/api/biometric/purge` | Full wipe — requires `{confirm: true}`; removes ciphertext, matcher table, and FR-8 ISO wire copies |
+
+Documented deviations from the pre-implementation draft (2026-09-16):
+- **Capture body is raw octet-stream**, not multipart — one code path, consistent with the rest of the surface.
+- **`/identify` stays side-effect-free**; the record-creation composition lives in `/punch` (the punch controller), keeping decision and write separable.
+- **`/capture` returns the just-extracted template to the presenting client.** The stateless ceremony (page holds the samples) needs it. This is a narrow, documented exception to the "no template bytes in API responses" rule: only the client that just presented the finger receives that finger's template, nothing is logged, and the wire is the same untrusted LAN HTTP as the ZK protocol itself (FR-8 carries templates in plaintext too). Server-held ceremony state would remove the round-trip — a Phase-8 hardening option (future-work).
 
 Response rule (ADR-011): template bytes are **never** returned — only metadata, scores, verdicts and reasons.
 

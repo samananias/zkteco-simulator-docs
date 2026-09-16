@@ -62,9 +62,9 @@ The device face above is **unchanged**; the biometric UI is a separate set of pa
 
 | Page | Purpose | Notes |
 |---|---|---|
-| `/enroll` | Employee enrollment via the camera station | Consent statement first, framing overlay, per-sample quality verdict with actionable reasons, progress (sample 2 of 3), success confirmation |
-| `/scan` | Punch / identify station | Big "Place finger" guidance, capture → verdict; on pass shows the employee name (mirrors the device's green ✓); on fail shows the reason and offers retry |
-| `/biometric` | Admin view | Enrolled employees (metadata only), template counts, station/matcher status, purge action with explicit confirmation |
+| `/enroll` | Employee enrollment via the camera station — **implemented (Phase 7)** | Consent statement first (checkbox-gated), framing overlay, per-sample quality verdict with actionable reasons, progress (sample 2 of 3), success confirmation; no-camera fallback explains the import path |
+| `/scan` | Punch / identify station — **implemented (Phase 7)** | Big "Place finger" guidance, capture → verdict; on pass shows the employee name (mirrors the device's green ✓); on fail shows the reason and offers retry; matcher-offline is surfaced distinctly, never as "not recognized" |
+| `/biometric` | Admin view | ⬜ pending Phase 8 (consent/retention flows): enrolled employees (metadata only), template counts, station/matcher status, purge action with explicit confirmation — the REST surface already provides everything this page will render |
 
 Rules carried from ADR-011: no fingerprint image is ever displayed after capture (not even to the enrollee), no template bytes in the UI or DOM, and the consent text is not dismissible-without-reading for enrollment. On `identify` the device face's `verify-pass`/`verify-fail` states are triggered by the **real** matcher verdict — the same WebSocket messages as before, so no UI rework is needed (Phase 6 reuses this file's §2 state table verbatim).
 

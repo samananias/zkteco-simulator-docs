@@ -21,9 +21,12 @@ Single source: environment variables + optional CLI flags (12-factor style, no c
 | `ZK_MATCHER_URL` | *(empty)* | Matcher sidecar base URL (`http://127.0.0.1:28090` — the sidecar's default port); empty ⇒ biometric features disabled (NFR-12) |
 | `ZK_BIOMETRIC_KEY` | *(empty)* | AES-256-GCM key (32 bytes: hex/base64/raw) for biometric templates at rest (ADR-011). Empty in dev ⇒ auto-generated **session** key with a loud warning — ciphertext becomes unreadable on restart; **never** committed or logged. Required in any real deployment |
 | `ZK_BIOMETRIC_DATA` | `./data/biometric` | Directory for encrypted template storage (git-ignored). CLI flag: `--zk-biometric-data-dir` |
-| `ZK_MATCH_THRESHOLD` | `40` | Accept threshold for 1:N identify (SourceAFIS operating point validated by the ADR-010 spike: same-finger ≥ 62.6 vs cross-finger ≤ 4.3) |
+| `ZK_MATCH_THRESHOLD` | `40` | Accept threshold for 1:N identify (SourceAFIS operating point validated by the ADR-010 spike: same-finger ≥ 62.6 vs cross-finger ≤ 4.3); also the enrollment-ceremony consistency bar |
 | `ZK_MATCH_SEPARATION` | `20` | Minimum score gap between best and runner-up candidate required to accept; a closer runner-up ⇒ `ambiguous` rejection (never silently pick) |
-| `ZK_CAPTURE_SAMPLES` | `3` | Samples required per enrollment (FR-14) |
+| `ZK_CAPTURE_SAMPLES` | `3` | Samples required per enrollment ceremony (FR-14) |
+| `ZK_QUALITY_MIN_BRIGHTNESS` | `60` | Capture quality floor — grayscale mean below this ⇒ `too-dark` (FR-16.1) |
+| `ZK_QUALITY_MIN_SHARPNESS` | `25` | Capture quality floor — Laplacian variance below this ⇒ `too-blurry` (FR-16.1) |
+| `ZK_QUALITY_MIN_COVERAGE` | `18` | Capture quality floor — textured-area percent below this ⇒ `partial-finger` (FR-16.1) |
 
 ## Precedence & validation
 CLI flags (e.g. `--zk-tcp-port 4371`) override env; invalid values fail fast at boot with the expected type/range in the message. All ports pre-flighted (bind check) before the "ready" log line.

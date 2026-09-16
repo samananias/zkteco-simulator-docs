@@ -25,6 +25,7 @@ Ideas and deferred items — none are commitments. Promote an item by giving it 
 - **Packaged releases** (single-binary via `node --experimental-sea` or `pkg`) for share-anywhere demos.
 
 ## Biometrics (Phase 6+ — planned, not v1)
+- **Android + USB-OTG scanner station** — *deferred by owner decision 2026-09-16 until hardware allowance* (module ≈₱1–2.5k); design preserved in `../architecture/capture-stations.md` §3 — it plugs into the same capture HTTP contract with zero core changes when funded (that interchangeability is ADR-009's demonstrated value).
 - **Enrollment ceremony over the protocol** — wire `CMD_STARTENROLL` (FR-8, currently ACK-only) to the real enrollment service and emit the `EF_ENROLLFINGER` event sequence, so backend-driven enrollment demos work end to end without any BITS change.
 - **PC-connected USB scanner station** — third `CaptureStation` adapter (research §3); convenient for desktop demos.
 - **Multi-finger / multi-modal** — more than one finger per employee; eventual face capture on terminals that have it (a separate research effort; cameras are far more accessible than fingerprint sensors).

@@ -4,6 +4,34 @@ Reverse-chronological. One entry per phase, decision, or significant fix (see `.
 
 ---
 
+## 2026-09-16 — Phase 7: capture stations implemented (camera-only; USB-OTG deferred)
+
+**What** (app repo)
+- **Sidecar** — `/extract` now also measures capture quality (brightness mean, Laplacian variance, textured-block coverage) during the same decode; measurement in Java, policy in the app (ADR-011 §7).
+- **`src/capture/quality.ts`** — the policy layer: configurable thresholds (`ZK_QUALITY_MIN_BRIGHTNESS` 60 / `ZK_QUALITY_MIN_SHARPNESS` 25 / `ZK_QUALITY_MIN_COVERAGE` 18%) → verdict with actionable reasons `too-dark` / `too-blurry` / `partial-finger` + a demo-grade 0–100 score. Images exist only inside the capture call — never stored (ADR-011 §1).
+- **`POST /api/biometric/capture`** — raw octet-stream frame → extraction + verdict (409 + reason on reject, no template leaks).
+- **N-sample enrollment ceremony (FR-14)** — `/api/biometric/enroll` accepts `samples[]`: every pair must clear the accept threshold via the engine's `/match` consistency check; the most central sample is stored through the triple-write; inconsistent ceremonies store nothing.
+- **`POST /api/biometric/punch`** — the punch controller (biometric-core §2): identify → `AttendanceRecord` with verifyType=1 through the same store/event-bus path as `/api/punch` → device face + EF_ATTLOG + BITS; fail paths emit the red overlay; sidecar down ⇒ 503, never auto-accept.
+- **PWA pages** — `/enroll` (consent-gated camera enrollment with framing overlay, per-sample verdicts, progress, no-camera fallback) and `/scan` (capture → verdict, pass shows the employee name); device-face menu now links both stations; `recordPunch` helper shared with the WS trigger path.
+
+**Documented deviations** (api-and-events §4): capture body = octet-stream (not multipart); `/identify` side-effect-free with composition in `/punch`; `/capture` returns the just-extracted template to the presenting client (stateless ceremony — narrow documented exception, server-held ceremony state noted as a Phase-8 hardening option).
+
+**Tests — 59/59 green** (was 43/43): 7 quality-gate unit (verdicts, boundaries, configurability), 3 ceremony unit (too-few/inconsistent/consistent), 6 capture integration (`test/integration/capture.test.ts`, own sidecar on :28093): quality accept + actionable reject on generated frames, ceremony enroll/inconsistent-409, biometric punch → attendance verifyType=1 → **EF_ATTLOG received by the node-zklib oracle** (the BITS pattern), station pages served.
+
+**Docs:** capture-stations §2 pipeline diagram + status, api-and-events §4 (implemented table + deviations), web-ui §5 (pages implemented; `/biometric` admin view pending Phase 8), configuration (quality floors), traceability FR-16.1 (✅ core), roadmap Phase 7 (annotated).
+
+**Remaining for the Phase-7 gate:** owner-run live-camera UX check on a phone + human-judged quality assessment recorded in the docs. Then Phase 8: `/biometric` admin view, consent/retention flows, deployment guide, BITS full-workday run.
+
+## 2026-09-16 — Owner decision: USB-OTG scanner deferred (Phase 7 → camera-only)
+
+**What**
+- The Android + USB-OTG scanner adapter (FR-16.2, revised-plan row 19) is deferred until hardware allowance (module ≈₱1–2.5k). Phase 7 proceeds **camera-only**; Phase 8 (BITS full-workday validation) proceeds without the OTG adapter — its gate never required it.
+- Safe by construction: ADR-009's capture-station contract isolates adapters; the capture-stations doc already stated *"Nothing in Phases 1–6 depends on this outcome"*. When funded, the station plugs into the same HTTP contract with zero core changes.
+
+**Updated:** roadmap Phase 7 row, traceability FR-16.2 row (⬜ deferred, allowance-gated), revised-project-plan row 19 (phase → future), future-work biometrics backlog, capture-stations §3 (deferred, design preserved).
+
+**Next:** Phase 7 implementation — capture pipeline (quality gate + `/api/biometric/capture`), N-sample enrollment ceremony, biometric punch path, camera PWA pages (`/enroll`, `/scan`).
+
 ## 2026-09-16 — Phase 6 app layer: biometric substitute core implemented
 
 **What** (app repo)

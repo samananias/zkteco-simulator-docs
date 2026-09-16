@@ -1,8 +1,6 @@
 # Capture Stations (Phase 7+)
 
-**Status:** planned. Contract is fixed now (ADR-009) so Phase 6's core can be written against it.
-
-A **capture station** is whatever turns a physical finger into a `CaptureSample` the biometric core can consume. The set is intentionally small and every member is optional.
+**Status:** camera station, import station and fixture testing implemented in Phase 7 (2026-09-16). The USB-OTG adapter is **deferred** (§3, owner decision — allowance-gated). A capture station is whatever turns a physical finger into a `CaptureSample` the biometric core can consume; every member is optional.
 
 ## 1. The contract (ADR-009)
 
@@ -23,15 +21,18 @@ Normalization rule: **every station returns ISO 19794-2 bytes** (or an image tha
 
 ```text
 📱 PWA page (/enroll, /scan)                🖥 Simulator core
-getUserMedia → live preview                 
-  guidance overlay (finger box, level)      
-  ├─ capture button → JPEG/PNG frame ──────► POST /api/biometric/capture  (multipart)
-  │                                                 │
-  │                                          segmentation   (isolate ridge area)
-  │                                          enhancement    (contrast/normalize)
-  │                                          minutiae       → ISO 19794-2 template
-  │                                          quality gate   (blur / coverage / contrast)
-  ◄──────────── quality feedback + retry ───────────┘  (409 + reason on reject)
+getUserMedia → live preview                 implemented (Phase 7)
+  guidance overlay (finger box, level)      ┌────────────────────────────────────┐
+  ├─ capture button → JPEG frame ──────────►│ POST /api/biometric/capture        │
+  │                                         │  (raw octet-stream)                │
+  │                                         │  extraction  (sidecar /extract:    │
+  │                                         │   segmentation → enhancement →     │
+  │                                         │   minutiae → ISO 19794-2 +         │
+  │                                         │   brightness/sharpness/coverage)   │
+  │                                         │  quality gate  (app-side policy:   │
+  │                                         │   configurable thresholds)         │
+  ◄──────────── quality feedback + retry ───┤  (409 + reason on reject)          │
+  │                                         └────────────────────────────────────┘
 ```
 
 **Capture protocol (UX):**
@@ -43,9 +44,9 @@ getUserMedia → live preview
 
 **Honest quality bar** (also in `../status/known-limitations.md`): a camera capture is visibly below a capacitive sensor. Good enough for a portfolio demo and for genuine function at small scale; sensitive to lighting and pose. This is a *documented trade-off of the zero-hardware route*, not a bug to fix later.
 
-## 3. USB-OTG scanner station (Phase 7, hardware)
+## 3. USB-OTG scanner station (deferred — owner decision 2026-09-16, allowance-gated)
 
-`[A]` overall design; specifics validated when a module is obtained.
+`[A]` overall design; specifics validated when a module is obtained. Deferred out of Phase 7 — the camera station ships alone; this adapter plugs into the same contract later with zero core changes (ADR-009's value demonstrated by exactly that).
 
 ```text
 📱 Android app (or Node CLI on a PC)
