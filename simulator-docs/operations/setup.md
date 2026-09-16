@@ -40,6 +40,7 @@ The backend resolves devices from `ZK_HOST`/`ZK_PORT` env or per-device rows in 
 - Simplest: set `ZK_HOST=127.0.0.1` (or your LAN IP for device-on-another-machine demos) and keep port `4370`.
 - Or edit the device record's IP in the BITS admin UI to the simulator host's IP — no code changes, as designed.
 - Verify from the BITS side: device status endpoint / topbar indicator turns active; `getInfo`, users, and the ~30 s attendance sync begin to flow.
+- Doing the full human gate (camera enroll → punch → BITS ingest → consent/withdraw/purge)? Follow `guide.md` — it expands this section into the elaborated step-by-step walkthrough.
 
 ## 5. Windows notes
 - Port 4370 is not a standard Windows reservation, but Hyper-V/dynamic ranges occasionally reserve ranges — the simulator pre-flights the port and fails with a readable message (see `troubleshooting.md`).

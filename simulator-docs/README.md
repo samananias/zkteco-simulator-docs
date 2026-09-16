@@ -19,7 +19,7 @@
 | `architecture/` | `system-architecture.md`, `protocol-engine.md`, `data-model.md`, `web-ui.md`, `api-and-events.md`, `biometric-core.md`, `capture-stations.md` | You implement or review a module |
 | `decisions/` | `README.md` (ADR index + template), `ADR-001` … `ADR-011` | You want the reasoning behind a choice, or need to make a new decision |
 | `plan/` | `roadmap.md`, `revised-project-plan.md`, `testing-strategy.md` | You start a phase or write tests |
-| `operations/` | `setup.md`, `configuration.md`, `troubleshooting.md`, `security.md` | You run, configure, or debug the system |
+| `operations/` | `setup.md`, `configuration.md`, `troubleshooting.md`, `security.md`, `deployment.md`, `guide.md` (live-gate walkthrough) | You run, configure, or debug the system |
 | `process/` | `development-workflow.md`, `documentation-policy.md` | You make any change |
 | `status/` | `known-limitations.md`, `risks.md`, `change-history.md`, `future-work.md` | You wonder what the system *can't* do, what might bite us, or what changed |
 
